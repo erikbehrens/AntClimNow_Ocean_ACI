@@ -11,36 +11,54 @@ Created on Sun May  7 23:51:46 2023
 
 import cdsapi
 from datetime import datetime
- 
 from dateutil.relativedelta import relativedelta
+import pandas as pd
+from dateutil.rrule import rrule, MONTHLY
 
 c = cdsapi.Client()
 
-start_year = datetime(2015, 1, 1,0,0)
-end_year = datetime(2024, 1, 1,0,0)
-#delta = timedelta(month=1)
+start_date = datetime(2015, 1, 1,0,0)
+end_date = datetime(2024, 1, 1,0,0)
 
+data_dir='/home/behrense/_niwa02764n/ORAS5_download/'
+run_dir='/home/behrense/analyse/ORAS5/'
 
+#%%check last entry
+df = pd.read_csv(run_dir+'AntClimNow_Ocean_ACI.csv')
+last_date=df[-1:]['Date'].values[0]
+last_date=datetime.strptime(last_date,'%Y-%m-%d')
 
+if last_date <= end_date:
+    dates = [dt for dt in rrule(MONTHLY, dtstart=last_date, until=end_date)]  
+    for da in dates:
+        print(da.year,str(da.month).zfill(2))
+        #download_ORAS5(da.year)
+    
+   #return
+ 
 
 #%%
-var_to_download=['zonal_velocity']
+
 #%%
 
-while start_year <= end_year:
-   
+def download_ORAS5(year,month):
+    var_to_download=['zonal_velocity','meridional_velocity']
     for var in  var_to_download: 
        # start_year =start_year+relativedelta(years=+1) 
         
-        
-        file='/home/behrense/_niwa02764n/ORAS5_download/ORAS5_1m_'+var+'_'+str(start_year.year)+'.zip'
+        if year < 2015:
+            pro_typ='consolidated'
+        else:
+            pro_typ='consolidated'
+            
+        file=data_dir+'/ORAS5_1m_'+var+'_'+str(year)+month+'.zip'
         c.retrieve(
             'reanalysis-oras5',
         {
         'vertical_resolution':'all_levels',
         'variable': var,
-        'product_type': 'operational',
-        'year': str(start_year.year),
+        'product_type': pro_typ,
+        'year': year,
         'month': [
                     '01', '02', '03',
                     '04', '05', '06',
@@ -52,5 +70,5 @@ while start_year <= end_year:
             },
             file)
         
-    start_year =start_year+relativedelta(years=+1)
+   
     
