@@ -18,6 +18,7 @@ from netCDF4 import Dataset
 import numpy as np
 import glob
 c = cdsapi.Client()
+from dateutil.relativedelta import *
 
 
 
@@ -25,12 +26,14 @@ c = cdsapi.Client()
 
 def download_ORAS5(year,month):
     var_to_download=['zonal_velocity','meridional_velocity','potential_temperature','salinity']
+    varnames=['vozocrtx','vomecrty','votemper','vosaline']
    # var_to_download=['potential_temperature','salinity']
     
     
     
-    for var in  var_to_download: 
-        if len(glob.glob(data_dir+'/*'+var+'_'+str(year)+month+'*.nc'))==0: # file needs downloading      
+    for var,names in  zip(var_to_download,varnames): 
+        if len(glob.glob(data_dir+'*'+names+'*_'+str(year)+month+'*.nc'))==0: # file needs downloading  
+            print(var)
             if year < 2015:
                 pro_typ='consolidated'
             else:
@@ -175,7 +178,7 @@ def get_AABW_HSSW_properties(year,month):
      HSSW_Weddell_volume=np.sum(np.where(sigma2[:45,:yy1,xx1:xx2]>37.05,volume[:45,:yy1,xx1:xx2],0))/1e9 #upper 1000m in km
      HSSW_Weddell_temperature=np.nanmedian(np.where(sigma2[:,:yy1,xx1:xx2]>37.05,votemper[:,:yy1,xx1:xx2],np.nan))
      HSSW_Weddell_salinity=np.nanmedian(np.where(sigma2[:,:yy1,xx1:xx2]>37.05,vosaline[:,:yy1,xx1:xx2],np.nan))
-     return AABW_volume, AABW_temperature,AABW_salinity,sigma2,HSSW_Ross_volume,HSSW_Ross_temperature,HSSW_Ross_salinity,HSSW_Weddell_volume,HSSW_Weddell_temperature,HSSW_Weddell_salinity
+     return AABW_volume, AABW_temperature,AABW_salinity,HSSW_Ross_volume,HSSW_Ross_temperature,HSSW_Ross_salinity,HSSW_Weddell_volume,HSSW_Weddell_temperature,HSSW_Weddell_salinity
        
 #%%
 
@@ -248,7 +251,7 @@ def get_sigma_overturning(year,month):
 
 
 def get_last_entry():
-    df = pd.read_csv(run_dir+'AntClimNow_Ocean_ACI.csv')
+    df = pd.read_csv(run_dir+'AntClimNow_Ocean_ACI_v01.csv')
     last_date=df[-1:]['Date'].values[0]
     last_date=datetime.strptime(last_date,'%Y-%m-%d')
     return last_date
@@ -256,33 +259,66 @@ def get_last_entry():
 def main():
     global start_date,end_date,data_dir,run_dir,mesh_dir
     
-    start_date = datetime(2015, 1, 1,0,0)
-    end_date = datetime(2023, 10, 1,0,0)
+    
+    
+    ### this section need adjusting by user
+    start_date = datetime(1960, 1, 1,0,0)
+    end_date = datetime(2023, 12, 1,0,0)
     
     data_dir='/home/behrense/_niwa02764n/ORAS5_download/'
     run_dir='/home/behrense/analyse/ORAS5/'
     mesh_dir='/home/behrense/_niwa02764p/MASK025/'
+    ### this section above need adjusting by user
     
-    last_date=get_last_entry()
-    if last_date <= end_date:
-        
-        dates = [dt for dt in rrule(MONTHLY, dtstart=last_date, until=end_date)]  
-        for da in dates: #only donwload next month
-            print(da.year,str(da.month).zfill(2))
-            download_ORAS5(da.year,str(da.month).zfill(2))
-            Ross_gyre,Weddell_gyre,ACC_transport=get_barotropic_transport(da.year,str(da.month).zfill(2))
-            AABW_export,AABW_overturning=get_sigma_overturning(da.year,str(da.month).zfill(2))
-            AABW_volume, AABW_temperature,AABW_salinity,sigma2,HSSW_Ross_volume,HSSW_Ross_temperature,HSSW_Ross_salinity,HSSW_Weddell_volume,HSSW_Weddell_temperature,HSSW_Weddell_salinity=get_AABW_HSSW_properties(da.year,str(da.month).zfill(2))
+    #check for csv files
+    if len(glob.glob(run_dir+'AntClimNow_Ocean_ACI_v01.csv'))==0: # file needs creating
+        idx = pd.date_range("1957-12-01", periods=1, freq="MS")
+        init_data=np.zeros((1,14,))
+        df = pd.DataFrame(init_data,columns=['Ross_gyre','Weddell_gyre','ACC_transport','AABW_export','AABW_overturning',\
+                                   'AABW_volume', 'AABW_temperature','AABW_salinity','HSSW_Ross_volume',\
+                                   'HSSW_Ross_temperature','HSSW_Ross_salinity','HSSW_Weddell_volume',\
+                                   'HSSW_Weddell_temperature','HSSW_Weddell_salinity'],index= idx)
+        df.index.name='Date'
+        df.to_csv(run_dir+'AntClimNow_Ocean_ACI_v01.csv')
 
+    last_date=get_last_entry()
+    if last_date <= end_date and start_date <=last_date:
+        
+        dates = [dt for dt in rrule(MONTHLY, dtstart=last_date+relativedelta(months=+1), until=end_date)]  
+    elif last_date <= end_date and start_date >=last_date:
+        
+        dates = [dt for dt in rrule(MONTHLY, dtstart=start_date, until=end_date)]     
+    if len(dates) !=0:
+        for da in dates: #only donwload next month
+            year=da.year
+            month=str(da.month).zfill(2)
+            print('processing', year,month,'takes about 3-5 minutes after download')
+            download_ORAS5(da.year,str(da.month).zfill(2))
+            idx = pd.date_range(da, periods=1, freq="MS")
+            #compute barotropic stremafunction
+            Ross_gyre,Weddell_gyre,ACC_transport=get_barotropic_transport(year,month)
+            #compute sigma2 overturning 
+            AABW_export,AABW_overturning=get_sigma_overturning(year,month)
+            #compute sigma2 
+            AABW_volume, AABW_temperature,AABW_salinity,HSSW_Ross_volume,HSSW_Ross_temperature,\
+            HSSW_Ross_salinity,HSSW_Weddell_volume,HSSW_Weddell_temperature,HSSW_Weddell_salinity=get_AABW_HSSW_properties(year,month)
+            data=np.array([[Ross_gyre,Weddell_gyre,ACC_transport,AABW_export,AABW_overturning,\
+                            AABW_volume, AABW_temperature,AABW_salinity,HSSW_Ross_volume,\
+                            HSSW_Ross_temperature,HSSW_Ross_salinity,\
+                            HSSW_Weddell_volume,HSSW_Weddell_temperature,HSSW_Weddell_salinity]])
+            df = pd.DataFrame(data,index= idx)
+            #df = pd.DataFrame(init_data+2,index= idx)
+            df.to_csv(run_dir+'AntClimNow_Ocean_ACI_v01.csv',mode='a')
+    return data       
 if __name__ == '__main__':
-    main()        
+    data=main()        
 
  
 
-#%%
-AABW_export,AABW_overturning=get_sigma_overturning(2023,'09')
-AABW_volume, AABW_temperature,AABW_salinity,sigma2,HSSW_Ross_volume,HSSW_Ross_temperature,HSSW_Ross_salinity,HSSW_Weddell_volume,HSSW_Weddell_temperature,HSSW_Weddell_salinity=get_AABW_HSSW_properties(2023,'09')
-Ross_gyre,Weddell_gyre,ACC_transport=get_barotropic_transport(2023,'09')
-#%%      
+# #%%
+# AABW_export,AABW_overturning=get_sigma_overturning(2023,'09')
+# AABW_volume, AABW_temperature,AABW_salinity,sigma2,HSSW_Ross_volume,HSSW_Ross_temperature,HSSW_Ross_salinity,HSSW_Weddell_volume,HSSW_Weddell_temperature,HSSW_Weddell_salinity=get_AABW_HSSW_properties(2023,'09')
+# Ross_gyre,Weddell_gyre,ACC_transport=get_barotropic_transport(2023,'09')
+# #%%      
    
     
