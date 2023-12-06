@@ -25,7 +25,7 @@ Data originates from ORAS5 reanalysis datasets. (https://cds.climate.copernicus.
 3. Three paths wihtin the AntClimNow_Ocean_ACI.py are required to be modified in main()
   3.1     data_dir='/home/ORAS5_download/'  # this is the directory where the ORAS5 data is donwloaded to, on HPCF that might be a temporary directory
   3.2     run_dir='/home/analyse/ORAS5/'    # that is the run directory contain the cloned python scripts
-  3.3     mesh_dir='/home//MASK025/'        # this folder points to grid specification of ORAS5 (mesh_mask.nc, file is provided in this repository too)
+  3.3     mesh_dir='/home//MASK025/'        # this folder points to grid specification of ORAS5 (mesh_mask.nc, file is here https://icdc.cen.uni-hamburg.de/thredds/catalog/ftpthredds/EASYInit/oras5/ORCA025/mesh/catalog.html and in zenodo)
 4.  Modify
     start_date = datetime(1960, 1, 1,0,0)
     end_date = datetime(2023, 12, 1,0,0) in main() as required to rerun or update the existing ACI values.
