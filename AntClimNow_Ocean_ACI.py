@@ -166,18 +166,20 @@ def get_AABW_HSSW_properties(year,month):
      AABW_volume=np.sum(np.where(sigma2[:,:550,:]>37,volume[:,:550,:],0))/1e9 #km3
      AABW_temperature=np.nanmedian(np.where(sigma2[:,:550,:]>37,votemper[:,:550,:],np.nan))
      AABW_salinity=np.nanmedian(np.where(sigma2[:,:550,:]>37,vosaline[:,:550,:],np.nan))
-     # integrate volume of HSSW in Ross Sea sector where sigma 37.05 and get median temperature and salinity
-     xx1,yy1=nearest_point(lon, lat, 160,-70)
+     # integrate volume of HSSW in Ross Sea sector where sigma >37.05 and get median temperature and salinity
+     sigma_threshold=37.05
+     depth_level=45 #upper 1000m
+     xx1,yy1=nearest_point(lon, lat, 160,-70) # only need to the northern end
      xx2,yy2=nearest_point(lon, lat, 200,-70)
-     HSSW_Ross_volume=np.sum(np.where(sigma2[:45,:yy1,xx1:xx2]>37.05,volume[:45,:yy1,xx1:xx2],0))/1e9 #upper 1000m in km
-     HSSW_Ross_temperature=np.nanmedian(np.where(sigma2[:,:yy1,xx1:xx2]>37.05,votemper[:,:yy1,xx1:xx2],np.nan))
-     HSSW_Ross_salinity=np.nanmedian(np.where(sigma2[:,:yy1,xx1:xx2]>37.05,vosaline[:,:yy1,xx1:xx2],np.nan))
-     # integrate volume of HSSW in Weddell Sea sector where sigma 37.05 and get median temperature and salinity
-     xx1,yy1=nearest_point(lon, lat, 295,-70)
-     xx2,yy2=nearest_point(lon, lat, 310,-70)
-     HSSW_Weddell_volume=np.sum(np.where(sigma2[:45,:yy1,xx1:xx2]>37.05,volume[:45,:yy1,xx1:xx2],0))/1e9 #upper 1000m in km
-     HSSW_Weddell_temperature=np.nanmedian(np.where(sigma2[:,:yy1,xx1:xx2]>37.05,votemper[:,:yy1,xx1:xx2],np.nan))
-     HSSW_Weddell_salinity=np.nanmedian(np.where(sigma2[:,:yy1,xx1:xx2]>37.05,vosaline[:,:yy1,xx1:xx2],np.nan))
+     HSSW_Ross_volume=np.sum(np.where(sigma2[:depth_level,:yy1,xx1:xx2]>sigma_threshold,volume[:depth_level,:yy1,xx1:xx2],0))/1e9 #upper 1000m in km
+     HSSW_Ross_temperature=np.nanmedian(np.where(sigma2[:depth_level,:yy1,xx1:xx2]>sigma_threshold,votemper[:depth_level,:yy1,xx1:xx2],np.nan))
+     HSSW_Ross_salinity=np.nanmedian(np.where(sigma2[:depth_level,:yy1,xx1:xx2]>sigma_threshold,vosaline[:depth_level,:yy1,xx1:xx2],np.nan))
+     # integrate volume of HSSW in Weddell Sea sector where sigma >37.05 and get median temperature and salinity
+     xx1,yy1=nearest_point(lon, lat, 295,-70) # only need to the northern end
+     xx2,yy2=nearest_point(lon, lat, 335,-70)
+     HSSW_Weddell_volume=np.sum(np.where(sigma2[:depth_level,:yy1,xx1:xx2]>sigma_threshold,volume[:depth_level,:yy1,xx1:xx2],0))/1e9 #upper 1000m in km
+     HSSW_Weddell_temperature=np.nanmedian(np.where(sigma2[:depth_level,:yy1,xx1:xx2]>sigma_threshold,votemper[:depth_level,:yy1,xx1:xx2],np.nan))
+     HSSW_Weddell_salinity=np.nanmedian(np.where(sigma2[:depth_level,:yy1,xx1:xx2]>sigma_threshold,vosaline[:depth_level,:yy1,xx1:xx2],np.nan))
      return AABW_volume, AABW_temperature,AABW_salinity,HSSW_Ross_volume,HSSW_Ross_temperature,HSSW_Ross_salinity,HSSW_Weddell_volume,HSSW_Weddell_temperature,HSSW_Weddell_salinity
        
 #%%
@@ -251,13 +253,13 @@ def get_sigma_overturning(year,month):
 
 
 def get_last_entry():
-    df = pd.read_csv(run_dir+'AntClimNow_Ocean_ACI_v01.csv')
+    df = pd.read_csv(run_dir+'AntClimNow_Ocean_ACI_v1.csv')
     last_date=df[-1:]['Date'].values[0]
     last_date=datetime.strptime(last_date,'%Y-%m-%d')
     return last_date
 
 def main():
-    global start_date,end_date,data_dir,run_dir,mesh_dir
+    global start_date,end_date,data_dir,run_dir,mesh_dir,sigma2
     
     
     
@@ -271,7 +273,7 @@ def main():
     ### this section above need adjusting by user
     
     #check for csv files
-    if len(glob.glob(run_dir+'AntClimNow_Ocean_ACI_v01.csv'))==0: # file needs creating
+    if len(glob.glob(run_dir+'AntClimNow_Ocean_ACI_v1.csv'))==0: # file needs creating
         idx = pd.date_range("1957-12-01", periods=1, freq="MS")
         init_data=np.zeros((1,14,))
         df = pd.DataFrame(init_data,columns=['Ross_gyre','Weddell_gyre','ACC_transport','AABW_export','AABW_overturning',\
@@ -279,7 +281,7 @@ def main():
                                    'HSSW_Ross_temperature','HSSW_Ross_salinity','HSSW_Weddell_volume',\
                                    'HSSW_Weddell_temperature','HSSW_Weddell_salinity'],index= idx)
         df.index.name='Date'
-        df.to_csv(run_dir+'AntClimNow_Ocean_ACI_v01.csv')
+        df.to_csv(run_dir+'AntClimNow_Ocean_ACI_v1.csv')
 
     last_date=get_last_entry()
     if last_date <= end_date and start_date <=last_date:
@@ -292,7 +294,7 @@ def main():
         for da in dates: #only donwload next month
             year=da.year
             month=str(da.month).zfill(2)
-            print('processing', year,month,'takes about 3-5 minutes after download')
+            print('Processing', year,month,'now. Takes about 3-5 minutes after download.')
             download_ORAS5(da.year,str(da.month).zfill(2))
             idx = pd.date_range(da, periods=1, freq="MS")
             #compute barotropic stremafunction
@@ -306,16 +308,33 @@ def main():
                             AABW_volume, AABW_temperature,AABW_salinity,HSSW_Ross_volume,\
                             HSSW_Ross_temperature,HSSW_Ross_salinity,\
                             HSSW_Weddell_volume,HSSW_Weddell_temperature,HSSW_Weddell_salinity]])
+            print(data)
             df = pd.DataFrame(data,index= idx)
             #df = pd.DataFrame(init_data+2,index= idx)
-            df.to_csv(run_dir+'AntClimNow_Ocean_ACI_v01.csv',mode='a')
+            df.to_csv(run_dir+'AntClimNow_Ocean_ACI_v1.csv',mode='a', header=False)
     return data       
 if __name__ == '__main__':
     data=main()        
 
  
+#%%
 
-# #%%
+# da=Dataset('/home/behrense/_niwa02764p/MASK025//mesh_mask.nc')
+
+# lon=da['nav_lon'][:]
+# lon[lon<0]+=360
+# lat=da['nav_lat'][:]
+
+# import matplotlib.pyplot as plt
+
+# plt.close('all')
+# fig = plt.figure(figsize=(16,8))
+
+# plt.pcolormesh(lon[:550,:1050],lat[:550,:1050],np.max(sigma2[:45,:550,:1050],axis=0),vmin=37.05)
+# plt.colorbar()
+
+
+# # #%%
 # AABW_export,AABW_overturning=get_sigma_overturning(2023,'09')
 # AABW_volume, AABW_temperature,AABW_salinity,sigma2,HSSW_Ross_volume,HSSW_Ross_temperature,HSSW_Ross_salinity,HSSW_Weddell_volume,HSSW_Weddell_temperature,HSSW_Weddell_salinity=get_AABW_HSSW_properties(2023,'09')
 # Ross_gyre,Weddell_gyre,ACC_transport=get_barotropic_transport(2023,'09')
